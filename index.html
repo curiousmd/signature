@@ -292,6 +292,47 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        /* Modal styles */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 100; 
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.5); 
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 15px;
+            text-align: center;
+            position: relative;
+        }
+
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -304,15 +345,11 @@
         <div class="progress-steps">
             <div class="step active" id="step1">
                 <div class="step-number">1</div>
-                <span>Upload Document</span>
+                <span>Upload</span>
             </div>
             <div class="step" id="step2">
                 <div class="step-number">2</div>
-                <span>Create Signature</span>
-            </div>
-            <div class="step" id="step3">
-                <div class="step-number">3</div>
-                <span>Place & Save</span>
+                <span>Sign & Save</span>
             </div>
         </div>
 
@@ -334,44 +371,13 @@
             </div>
         </div>
 
-        <!-- Document Viewer -->
-        <div class="card document-viewer" id="documentViewer">
-            <h2>📋 Document Preview</h2>
-            <div class="document-container">
-                <canvas id="documentDisplay"></canvas>
-            </div>
-            <div style="text-align: center; margin-top: 20px;">
-                <button class="btn btn-primary" id="proceedToSign">Proceed to Sign</button>
-            </div>
-        </div>
-
-        <!-- Signature Section -->
-        <div class="card signature-section" id="signatureSection">
-            <h2>✍️ Create Your Signature</h2>
+        <!-- Unified Document Editor -->
+        <div class="card document-editor" id="editorView" style="display: none;">
+            <h2>✍️ Sign Your Document</h2>
+            <p style="margin-bottom: 20px; color: #666;">Click "Create Signature" to draw your signature, then place it on the document. You can drag to reposition and resize.</p>
             
             <div class="signature-controls">
-                <button class="btn btn-secondary" id="clearSignature">Clear</button>
-                <button class="btn btn-primary" id="saveSignature">Save Signature</button>
-            </div>
-            
-            <div style="text-align: center; margin-bottom: 20px;">
-                <canvas id="signatureCanvas" class="signature-canvas" width="400" height="200"></canvas>
-            </div>
-
-            <div class="signature-preview" id="signaturePreview" style="display: none;">
-                <h3>Signature Preview:</h3>
-                <canvas id="previewCanvas" width="200" height="100"></canvas>
-                <br><br>
-                <button class="btn btn-success" id="proceedToPlace">Place on Document</button>
-            </div>
-        </div>
-
-        <!-- Document Editor -->
-        <div class="card document-editor" id="documentEditor">
-            <h2>📍 Place Your Signature</h2>
-            <p style="margin-bottom: 20px; color: #666;">Click on the document where you want to place your signature. You can drag to reposition and resize.</p>
-            
-            <div class="signature-controls">
+                <button class="btn btn-primary" id="openSignatureModal">Create Signature</button>
                 <button class="btn btn-secondary" id="resetPlacement">Reset Position</button>
                 <button class="btn btn-success" id="finalizeDocument">Save as PDF</button>
             </div>
@@ -386,8 +392,31 @@
         </div>
     </div>
 
+    <!-- Hidden canvas for initial rendering -->
+    <canvas id="documentDisplay" style="display: none;"></canvas>
+    
+    <!-- Hidden container for DOCX rendering -->
+    <div id="docx-container" style="position: absolute; left: -9999px; top: -9999px;"></div>
+
+    <!-- Signature Modal -->
+    <div id="signatureModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="closeSignatureModal">&times;</span>
+            <h2>Create Your Signature</h2>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <canvas id="signatureCanvas" class="signature-canvas" width="500" height="250"></canvas>
+            </div>
+            <div class="signature-controls">
+                <button class="btn btn-secondary" id="clearSignature">Clear</button>
+                <button class="btn btn-primary" id="saveSignature">Save and Use</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         // Initialize PDF.js worker
@@ -409,18 +438,22 @@
             }
 
             initializeEventListeners() {
+                // Upload
                 document.getElementById('fileInput').addEventListener('change', (e) => this.handleFileUpload(e));
-                document.getElementById('proceedToSign').addEventListener('click', () => this.showSignatureSection());
-                document.getElementById('clearSignature').addEventListener('click', () => this.clearSignature());
-                document.getElementById('saveSignature').addEventListener('click', () => this.saveSignature());
-                document.getElementById('proceedToPlace').addEventListener('click', () => this.showDocumentEditor());
+                
+                // Editor controls
+                document.getElementById('openSignatureModal').addEventListener('click', () => this.openSignatureModal());
                 document.getElementById('resetPlacement').addEventListener('click', () => this.resetSignaturePosition());
                 document.getElementById('finalizeDocument').addEventListener('click', () => this.finalizeDocument());
+                
+                // Modal controls
+                document.getElementById('closeSignatureModal').addEventListener('click', () => this.closeSignatureModal());
+                document.getElementById('clearSignature').addEventListener('click', () => this.clearSignature());
+                document.getElementById('saveSignature').addEventListener('click', () => this.saveSignature());
 
                 // Signature overlay interactions
                 const overlay = document.getElementById('signatureOverlay');
                 const resizeHandle = document.getElementById('resizeHandle');
-
                 overlay.addEventListener('mousedown', (e) => this.startDragging(e));
                 resizeHandle.addEventListener('mousedown', (e) => this.startResizing(e));
                 document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
@@ -428,6 +461,13 @@
 
                 // Click to place signature
                 document.getElementById('documentCanvas').addEventListener('click', (e) => this.placeSignature(e));
+                
+                // Close modal if clicking outside of it
+                window.addEventListener('click', (event) => {
+                    if (event.target == document.getElementById('signatureModal')) {
+                        this.closeSignatureModal();
+                    }
+                });
             }
 
             setupSignatureCanvas() {
@@ -502,9 +542,7 @@
                         await this.handleImageUpload(file);
                     }
                     
-                    this.updateProgress(1);
-                    document.getElementById('documentViewer').style.display = 'block';
-                    document.getElementById('uploadSection').style.display = 'none';
+                    this.showEditor();
                 } catch (error) {
                     alert('Error processing document: ' + error.message);
                 } finally {
@@ -514,8 +552,6 @@
 
             async handlePDFUpload(file) {
                 const arrayBuffer = await file.arrayBuffer();
-                
-                // Use PDF.js to render the PDF as an image (8.5x11 inches at 96 DPI = 816x1056 pixels)
                 const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
                 const pdf = await loadingTask.promise;
                 const page = await pdf.getPage(1);
@@ -523,39 +559,25 @@
                 const canvas = document.getElementById('documentDisplay');
                 const context = canvas.getContext('2d');
                 
-                // Set canvas to 8.5x11 inches at 96 DPI
-                const width = 816;  // 8.5 inches * 96 DPI
-                const height = 1056; // 11 inches * 96 DPI
+                // Set canvas to 8.5x11 inches at 150 DPI
+                const width = 1275;  // 8.5 inches * 150 DPI
+                const height = 1650; // 11 inches * 150 DPI
                 canvas.width = width;
                 canvas.height = height;
                 
-                // Scale the PDF page to fit exactly in 8.5x11
                 const viewport = page.getViewport({scale: 1});
-                const scaleX = width / viewport.width;
-                const scaleY = height / viewport.height;
-                const scale = Math.min(scaleX, scaleY); // Use smaller scale to maintain aspect ratio
-                
+                const scale = width / viewport.width;
                 const scaledViewport = page.getViewport({scale: scale});
-                
-                // Center the page if it doesn't fill the entire canvas
-                const offsetX = (width - scaledViewport.width) / 2;
-                const offsetY = (height - scaledViewport.height) / 2;
-                
-                // Fill with white background
+
                 context.fillStyle = '#ffffff';
                 context.fillRect(0, 0, width, height);
-                
-                // Translate context to center the PDF
-                context.save();
-                context.translate(offsetX, offsetY);
-                
+
                 const renderContext = {
                     canvasContext: context,
                     viewport: scaledViewport
                 };
                 
                 await page.render(renderContext).promise;
-                context.restore();
                 
                 this.currentDocument = {
                     type: 'pdf',
@@ -569,27 +591,45 @@
 
             async handleDocxUpload(file) {
                 const arrayBuffer = await file.arrayBuffer();
+                const docxContainer = document.getElementById('docx-container');
                 
-                // Convert DOCX to HTML using mammoth
-                const result = await mammoth.convertToHtml({ 
-                    arrayBuffer: arrayBuffer,
-                    convertImage: mammoth.images.imgElement(function(image) {
-                        return image.read("base64").then(function(imageBuffer) {
-                            return {
-                                src: "data:" + image.contentType + ";base64," + imageBuffer
-                            };
-                        });
-                    })
+                // 1. Render the DOCX into the hidden div
+                await docx.renderAsync(arrayBuffer, docxContainer, null, {
+                    className: "docx-content",
+                    inWrapper: false,
                 });
+
+                // 2. Use html2canvas to capture the rendered div
+                const capturedCanvas = await html2canvas(docxContainer);
+
+                // 3. Draw the captured canvas onto our main display canvas
+                const displayCanvas = document.getElementById('documentDisplay');
+                const context = displayCanvas.getContext('2d');
                 
-                // Render the HTML content directly to canvas
-                await this.renderDocxHtmlToCanvas(result.value);
+                const width = 1275;
+                const height = 1650;
+                displayCanvas.width = width;
+                displayCanvas.height = height;
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, width, height);
                 
+                // Scale the captured canvas to fit the display canvas
+                const scale = Math.min(width / capturedCanvas.width, height / capturedCanvas.height);
+                const scaledWidth = capturedCanvas.width * scale;
+                const scaledHeight = capturedCanvas.height * scale;
+                const offsetX = (width - scaledWidth) / 2;
+                const offsetY = (height - scaledHeight) / 2;
+
+                context.drawImage(capturedCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
+                
+                // Clean up the hidden div
+                docxContainer.innerHTML = '';
+
                 this.currentDocument = {
                     type: 'docx',
                     originalFile: file,
-                    width: 816,
-                    height: 1056
+                    width: width,
+                    height: height
                 };
             }
 
@@ -600,17 +640,15 @@
                     const ctx = canvas.getContext('2d');
                     
                     img.onload = () => {
-                        // Set canvas to 8.5x11 inches at 96 DPI
-                        const width = 816;  // 8.5 inches * 96 DPI
-                        const height = 1056; // 11 inches * 96 DPI
+                        // Set canvas to 8.5x11 inches at 150 DPI
+                        const width = 1275;
+                        const height = 1650;
                         canvas.width = width;
                         canvas.height = height;
                         
-                        // Fill with white background
                         ctx.fillStyle = '#ffffff';
                         ctx.fillRect(0, 0, width, height);
                         
-                        // Calculate scaling to fit the image within 8.5x11 while maintaining aspect ratio
                         const scaleX = width / img.width;
                         const scaleY = height / img.height;
                         const scale = Math.min(scaleX, scaleY);
@@ -618,7 +656,6 @@
                         const scaledWidth = img.width * scale;
                         const scaledHeight = img.height * scale;
                         
-                        // Center the image
                         const offsetX = (width - scaledWidth) / 2;
                         const offsetY = (height - scaledHeight) / 2;
                         
@@ -644,137 +681,45 @@
                 });
             }
 
-
-
-            async renderDocxHtmlToCanvas(html) {
-                const canvas = document.getElementById('documentDisplay');
-                const ctx = canvas.getContext('2d');
-                
-                // Set canvas to 8.5x11 inches at 96 DPI
-                canvas.width = 816;
-                canvas.height = 1056;
-                
-                // Fill with white background
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, 816, 1056);
-                
-                // Set text properties
-                ctx.fillStyle = '#000000';
-                ctx.font = '12px Calibri, Arial, sans-serif';
-                
-                // Clean up the HTML and extract text with basic formatting
-                let cleanHtml = html
-                    .replace(/<br\s*\/?>/gi, '\n')
-                    .replace(/<\/p>/gi, '\n\n')
-                    .replace(/<\/div>/gi, '\n')
-                    .replace(/<\/h[1-6]>/gi, '\n\n');
-                
-                // Create a temporary element to parse the HTML
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = cleanHtml;
-                
-                // Extract text content while preserving some structure
-                const textContent = tempDiv.textContent || tempDiv.innerText || '';
-                
-                // Split into paragraphs
-                const paragraphs = textContent.split('\n').filter(p => p.trim());
-                
-                let y = 96; // 1 inch top margin
-                const lineHeight = 16;
-                const maxWidth = 624; // 6.5 inches content width (8.5 - 2 inch margins)
-                const leftMargin = 96; // 1 inch left margin
-                
-                for (let paragraph of paragraphs) {
-                    if (!paragraph.trim()) {
-                        y += lineHeight * 0.5;
-                        continue;
-                    }
-                    
-                    // Word wrap each paragraph
-                    const words = paragraph.trim().split(' ');
-                    let line = '';
-                    
-                    for (let word of words) {
-                        const testLine = line + (line ? ' ' : '') + word;
-                        const metrics = ctx.measureText(testLine);
-                        
-                        if (metrics.width > maxWidth && line) {
-                            ctx.fillText(line, leftMargin, y);
-                            y += lineHeight;
-                            line = word;
-                        } else {
-                            line = testLine;
-                        }
-                        
-                        // Stop if we're near the bottom of the page
-                        if (y > 960) break;
-                    }
-                    
-                    if (line && y <= 960) {
-                        ctx.fillText(line, leftMargin, y);
-                        y += lineHeight;
-                    }
-                    
-                    // Add paragraph spacing
-                    y += lineHeight * 0.3;
-                    
-                    if (y > 960) break;
-                }
-                
-                // If no content was rendered, show a message
-                if (y <= 96 + lineHeight) {
-                    ctx.fillText('DOCX Document Loaded Successfully', leftMargin, 150);
-                    ctx.fillText('Content ready for signing', leftMargin, 180);
-                }
+            showEditor() {
+                document.getElementById('uploadSection').style.display = 'none';
+                document.getElementById('editorView').style.display = 'block';
+                this.updateProgress(2);
+                this.setupDocumentEditor();
             }
 
-            showSignatureSection() {
-                document.getElementById('documentViewer').style.display = 'none';
-                document.getElementById('signatureSection').style.display = 'block';
-                this.updateProgress(2);
+            openSignatureModal() {
+                document.getElementById('signatureModal').style.display = 'block';
+            }
+
+            closeSignatureModal() {
+                document.getElementById('signatureModal').style.display = 'none';
             }
 
             clearSignature() {
                 const canvas = document.getElementById('signatureCanvas');
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                document.getElementById('signaturePreview').style.display = 'none';
             }
 
             saveSignature() {
                 const canvas = document.getElementById('signatureCanvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Check if canvas is empty
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const isEmpty = !imageData.data.some(channel => channel !== 0);
-                
-                if (isEmpty) {
-                    alert('Please draw your signature first!');
-                    return;
-                }
-                
-                this.signatureDataUrl = canvas.toDataURL();
-                
-                // Show preview
-                const previewCanvas = document.getElementById('previewCanvas');
-                const previewCtx = previewCanvas.getContext('2d');
-                const img = new Image();
-                
-                img.onload = () => {
-                    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-                    previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
-                };
-                
-                img.src = this.signatureDataUrl;
-                document.getElementById('signaturePreview').style.display = 'block';
-            }
+                if (imageData.data.some(channel => channel !== 0)) {
+                    this.signatureDataUrl = canvas.toDataURL('image/png');
+                    const overlay = document.getElementById('signatureOverlay');
+                    document.getElementById('signatureImage').src = this.signatureDataUrl;
 
-            showDocumentEditor() {
-                document.getElementById('signatureSection').style.display = 'none';
-                document.getElementById('documentEditor').style.display = 'block';
-                this.updateProgress(3);
-                this.setupDocumentEditor();
+                    // Set initial position and make it visible
+                    this.resetSignaturePosition();
+                    overlay.classList.add('active');
+                    
+                    this.closeSignatureModal();
+                } else {
+                    alert('Please draw your signature first!');
+                }
             }
 
             setupDocumentEditor() {
@@ -782,20 +727,19 @@
                 const originalCanvas = document.getElementById('documentDisplay');
                 const ctx = editorCanvas.getContext('2d');
                 
-                // Set editor canvas to same 8.5x11 size
-                editorCanvas.width = 816;  // 8.5 inches * 96 DPI
-                editorCanvas.height = 1056; // 11 inches * 96 DPI
+                // Set editor canvas to same 8.5x11 size at 150 DPI
+                editorCanvas.width = 1275;
+                editorCanvas.height = 1650;
                 
                 // Copy the original document image to editor canvas
-                ctx.drawImage(originalCanvas, 0, 0);
+                ctx.drawImage(originalCanvas, 0, 0, editorCanvas.width, editorCanvas.height);
                 
                 // Set up signature overlay
                 const overlay = document.getElementById('signatureOverlay');
                 const img = document.getElementById('signatureImage');
                 img.src = this.signatureDataUrl;
                 
-                overlay.style.left = this.signaturePosition.x + 'px';
-                overlay.style.top = this.signaturePosition.y + 'px';
+                overlay.style.transform = `translate(${this.signaturePosition.x}px, ${this.signaturePosition.y}px)`;
                 overlay.style.width = this.signatureSize.width + 'px';
                 overlay.style.height = this.signatureSize.height + 'px';
             }
@@ -808,8 +752,7 @@
                 this.signaturePosition = { x: x - this.signatureSize.width / 2, y: y - this.signatureSize.height / 2 };
                 
                 const overlay = document.getElementById('signatureOverlay');
-                overlay.style.left = this.signaturePosition.x + 'px';
-                overlay.style.top = this.signaturePosition.y + 'px';
+                overlay.style.transform = `translate(${this.signaturePosition.x}px, ${this.signaturePosition.y}px)`;
                 overlay.classList.add('active');
             }
 
@@ -839,8 +782,9 @@
                     };
                     
                     const overlay = document.getElementById('signatureOverlay');
-                    overlay.style.left = this.signaturePosition.x + 'px';
-                    overlay.style.top = this.signaturePosition.y + 'px';
+                    window.requestAnimationFrame(() => {
+                        overlay.style.transform = `translate(${this.signaturePosition.x}px, ${this.signaturePosition.y}px)`;
+                    });
                 } else if (this.isResizing) {
                     const container = document.getElementById('editorContainer');
                     const containerRect = container.getBoundingClientRect();
@@ -866,8 +810,7 @@
                 this.signatureSize = { width: 150, height: 60 };
                 
                 const overlay = document.getElementById('signatureOverlay');
-                overlay.style.left = this.signaturePosition.x + 'px';
-                overlay.style.top = this.signaturePosition.y + 'px';
+                overlay.style.transform = `translate(${this.signaturePosition.x}px, ${this.signaturePosition.y}px)`;
                 overlay.style.width = this.signatureSize.width + 'px';
                 overlay.style.height = this.signatureSize.height + 'px';
                 overlay.classList.remove('active');
@@ -877,35 +820,41 @@
                 try {
                     const canvas = document.getElementById('documentCanvas');
                     const ctx = canvas.getContext('2d');
-                    
-                    // Draw signature on the document
-                    const signatureImg = new Image();
-                    signatureImg.onload = () => {
-                        ctx.drawImage(
-                            signatureImg,
-                            this.signaturePosition.x,
-                            this.signaturePosition.y,
-                            this.signatureSize.width,
-                            this.signatureSize.height
-                        );
-                        
-                        // Convert to PDF and download
+
+                    if (this.signatureDataUrl) {
+                        // Draw signature only if it exists
+                        const signatureImg = new Image();
+                        signatureImg.onload = () => {
+                            ctx.drawImage(
+                                signatureImg,
+                                this.signaturePosition.x,
+                                this.signaturePosition.y,
+                                this.signatureSize.width,
+                                this.signatureSize.height
+                            );
+                            this.downloadSignedDocument(canvas);
+                        };
+                        signatureImg.src = this.signatureDataUrl;
+                    } else {
+                        // If no signature, just download the original document
                         this.downloadSignedDocument(canvas);
-                    };
-                    signatureImg.src = this.signatureDataUrl;
+                    }
                 } catch (error) {
                     alert('Error finalizing document: ' + error.message);
                 }
             }
 
             async downloadSignedDocument(canvas) {
-                // Create a PDF with the exact 8.5x11 inch page containing the signed document image
-                const imgData = canvas.toDataURL('image/png');
+                // Create a PDF with the 8.5x11 inch page at high resolution
+                const imgData = canvas.toDataURL('image/png', 1.0); // Use full quality PNG
                 
                 const pdfDoc = await PDFLib.PDFDocument.create();
                 
-                // Create a page that's exactly 8.5x11 inches (612x792 points in PDF units)
-                const page = pdfDoc.addPage([612, 792]);
+                // Standard letter size in points
+                const pageWidth = 612; // 8.5 inches
+                const pageHeight = 792; // 11 inches
+
+                const page = pdfDoc.addPage([pageWidth, pageHeight]);
                 
                 const pngImage = await pdfDoc.embedPng(imgData);
                 
@@ -913,8 +862,8 @@
                 page.drawImage(pngImage, {
                     x: 0,
                     y: 0,
-                    width: 612,
-                    height: 792,
+                    width: pageWidth,
+                    height: pageHeight,
                 });
                 
                 const pdfBytes = await pdfDoc.save();
@@ -948,7 +897,7 @@
         }
 
         // Initialize the platform when the page loads
-        document.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('load', () => {
             new DocumentSigningPlatform();
         });
     </script>
