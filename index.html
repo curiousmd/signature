@@ -395,8 +395,8 @@
     <!-- Hidden canvas for initial rendering -->
     <canvas id="documentDisplay" style="display: none;"></canvas>
     
-    <!-- Hidden container for DOCX rendering -->
-    <div id="docx-container" style="position: absolute; left: -9999px; top: -9999px;"></div>
+    <!-- Hidden container for WebViewer -->
+    <div id="webviewer" style="position: absolute; left: -9999px; top: -9999px; height: 1px; width: 1px;"></div>
 
     <!-- Signature Modal -->
     <div id="signatureModal" class="modal">
@@ -413,14 +413,14 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src='https://www.pdftron.com/webviewer/v8.2.0/webviewer.min.js'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         // Initialize PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        let webViewerInstance = null;
 
         class DocumentSigningPlatform {
             constructor() {
@@ -590,47 +590,15 @@
             }
 
             async handleDocxUpload(file) {
-                const arrayBuffer = await file.arrayBuffer();
-                const docxContainer = document.getElementById('docx-container');
+                if (!webViewerInstance) {
+                    throw new Error('WebViewer is not initialized.');
+                }
                 
-                // 1. Render the DOCX into the hidden div
-                await docx.renderAsync(arrayBuffer, docxContainer, null, {
-                    className: "docx-content",
-                    inWrapper: false,
-                });
-
-                // 2. Use html2canvas to capture the rendered div
-                const capturedCanvas = await html2canvas(docxContainer);
-
-                // 3. Draw the captured canvas onto our main display canvas
-                const displayCanvas = document.getElementById('documentDisplay');
-                const context = displayCanvas.getContext('2d');
+                // Convert DOCX to PDF buffer
+                const pdfBuffer = await webViewerInstance.Core.officeToPDFBuffer(file);
                 
-                const width = 1275;
-                const height = 1650;
-                displayCanvas.width = width;
-                displayCanvas.height = height;
-                context.fillStyle = '#ffffff';
-                context.fillRect(0, 0, width, height);
-                
-                // Scale the captured canvas to fit the display canvas
-                const scale = Math.min(width / capturedCanvas.width, height / capturedCanvas.height);
-                const scaledWidth = capturedCanvas.width * scale;
-                const scaledHeight = capturedCanvas.height * scale;
-                const offsetX = (width - scaledWidth) / 2;
-                const offsetY = (height - scaledHeight) / 2;
-
-                context.drawImage(capturedCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
-                
-                // Clean up the hidden div
-                docxContainer.innerHTML = '';
-
-                this.currentDocument = {
-                    type: 'docx',
-                    originalFile: file,
-                    width: width,
-                    height: height
-                };
+                // Now, treat the converted buffer as a standard PDF upload
+                await this.handlePDFUpload(new Blob([pdfBuffer], { type: 'application/pdf' }));
             }
 
             async handleImageUpload(file) {
@@ -898,7 +866,17 @@
 
         // Initialize the platform when the page loads
         window.addEventListener('load', () => {
-            new DocumentSigningPlatform();
+            WebViewer({
+                path: 'https://www.pdftron.com/webviewer/v8.2.0/lib',
+                disabledElements: ['header', 'tools', 'ribbons', 'pageNav', 'leftPanel', 'searchButton', 'menuButton'],
+            }, document.getElementById('webviewer'))
+            .then(instance => {
+                webViewerInstance = instance;
+                // Hide the viewer UI once it's initialized
+                instance.UI.disableElements(['header', 'tools', 'ribbons', 'pageNav', 'leftPanel', 'searchButton', 'menuButton']);
+                instance.UI.setTheme('dark'); // Make it less conspicuous if it flashes
+                new DocumentSigningPlatform();
+            });
         });
     </script>
 </body>
