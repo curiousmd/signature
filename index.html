@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Signing Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .document-viewer {
+            display: none;
+            margin-bottom: 30px;
+        }
+
+        .document-container {
+            position: relative;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            background: white;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        #documentDisplay {
+            width: 100%;
+            max-width: 100%;
+            display: block;
+        }
+
+        .signature-section {
+            display: none;
+        }
+
+        .signature-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .signature-canvas {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: crosshair;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .signature-preview {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .signature-preview canvas {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .document-editor {
+            display: none;
+            position: relative;
+        }
+
+        .editor-container {
+            position: relative;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .signature-overlay {
+            position: absolute;
+            border: 2px dashed #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            cursor: move;
+            display: none;
+            min-width: 150px;
+            min-height: 60px;
+            z-index: 10;
+        }
+
+        .signature-overlay.active {
+            display: block;
+        }
+
+        .signature-overlay img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: se-resize;
+            bottom: -5px;
+            right: -5px;
+        }
+
+        .progress-steps {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            gap: 20px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 25px;
+            color: white;
+            font-weight: 600;
+        }
+
+        .step.active {
+            background: rgba(255,255,255,0.3);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .step.completed {
+            background: #28a745;
+        }
+
+        .step-number {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: white;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .signature-controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .progress-steps {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Document Signing Platform</h1>
+            <p>Upload, Sign, and Save your documents securely</p>
+        </div>
+
+        <div class="progress-steps">
+            <div class="step active" id="step1">
+                <div class="step-number">1</div>
+                <span>Upload Document</span>
+            </div>
+            <div class="step" id="step2">
+                <div class="step-number">2</div>
+                <span>Create Signature</span>
+            </div>
+            <div class="step" id="step3">
+                <div class="step-number">3</div>
+                <span>Place & Save</span>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="card upload-section" id="uploadSection">
+            <h2>📎 Upload Your Document</h2>
+            <p style="margin-bottom: 20px; color: #666;">Supported formats: PDF, DOCX, PNG, JPG</p>
+            
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" class="file-input" accept=".pdf,.docx,.png,.jpg,.jpeg">
+                <label for="fileInput" class="file-input-label">
+                    Choose Document
+                </label>
+            </div>
+            
+            <div class="loading" id="uploadLoading">
+                <div class="spinner"></div>
+                <p>Processing document...</p>
+            </div>
+        </div>
+
+        <!-- Document Viewer -->
+        <div class="card document-viewer" id="documentViewer">
+            <h2>📋 Document Preview</h2>
+            <div class="document-container">
+                <canvas id="documentDisplay"></canvas>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-primary" id="proceedToSign">Proceed to Sign</button>
+            </div>
+        </div>
+
+        <!-- Signature Section -->
+        <div class="card signature-section" id="signatureSection">
+            <h2>✍️ Create Your Signature</h2>
+            
+            <div class="signature-controls">
+                <button class="btn btn-secondary" id="clearSignature">Clear</button>
+                <button class="btn btn-primary" id="saveSignature">Save Signature</button>
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 20px;">
+                <canvas id="signatureCanvas" class="signature-canvas" width="400" height="200"></canvas>
+            </div>
+
+            <div class="signature-preview" id="signaturePreview" style="display: none;">
+                <h3>Signature Preview:</h3>
+                <canvas id="previewCanvas" width="200" height="100"></canvas>
+                <br><br>
+                <button class="btn btn-success" id="proceedToPlace">Place on Document</button>
+            </div>
+        </div>
+
+        <!-- Document Editor -->
+        <div class="card document-editor" id="documentEditor">
+            <h2>📍 Place Your Signature</h2>
+            <p style="margin-bottom: 20px; color: #666;">Click on the document where you want to place your signature. You can drag to reposition and resize.</p>
+            
+            <div class="signature-controls">
+                <button class="btn btn-secondary" id="resetPlacement">Reset Position</button>
+                <button class="btn btn-success" id="finalizeDocument">Save as PDF</button>
+            </div>
+            
+            <div class="editor-container" id="editorContainer">
+                <canvas id="documentCanvas"></canvas>
+                <div class="signature-overlay" id="signatureOverlay">
+                    <img id="signatureImage" src="" alt="Signature">
+                    <div class="resize-handle" id="resizeHandle"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Initialize PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        class DocumentSigningPlatform {
+            constructor() {
+                this.currentDocument = null;
+                this.signatureDataUrl = null;
+                this.documentType = null;
+                this.signaturePosition = { x: 50, y: 50 };
+                this.signatureSize = { width: 150, height: 60 };
+                this.isDragging = false;
+                this.isResizing = false;
+                this.dragOffset = { x: 0, y: 0 };
+                
+                this.initializeEventListeners();
+                this.setupSignatureCanvas();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('fileInput').addEventListener('change', (e) => this.handleFileUpload(e));
+                document.getElementById('proceedToSign').addEventListener('click', () => this.showSignatureSection());
+                document.getElementById('clearSignature').addEventListener('click', () => this.clearSignature());
+                document.getElementById('saveSignature').addEventListener('click', () => this.saveSignature());
+                document.getElementById('proceedToPlace').addEventListener('click', () => this.showDocumentEditor());
+                document.getElementById('resetPlacement').addEventListener('click', () => this.resetSignaturePosition());
+                document.getElementById('finalizeDocument').addEventListener('click', () => this.finalizeDocument());
+
+                // Signature overlay interactions
+                const overlay = document.getElementById('signatureOverlay');
+                const resizeHandle = document.getElementById('resizeHandle');
+
+                overlay.addEventListener('mousedown', (e) => this.startDragging(e));
+                resizeHandle.addEventListener('mousedown', (e) => this.startResizing(e));
+                document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                document.addEventListener('mouseup', () => this.stopInteraction());
+
+                // Click to place signature
+                document.getElementById('documentCanvas').addEventListener('click', (e) => this.placeSignature(e));
+            }
+
+            setupSignatureCanvas() {
+                const canvas = document.getElementById('signatureCanvas');
+                const ctx = canvas.getContext('2d');
+                let isDrawing = false;
+                let lastX = 0;
+                let lastY = 0;
+
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                canvas.addEventListener('mousedown', (e) => {
+                    isDrawing = true;
+                    [lastX, lastY] = [e.offsetX, e.offsetY];
+                });
+
+                canvas.addEventListener('mousemove', (e) => {
+                    if (!isDrawing) return;
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                    ctx.lineTo(e.offsetX, e.offsetY);
+                    ctx.stroke();
+                    [lastX, lastY] = [e.offsetX, e.offsetY];
+                });
+
+                canvas.addEventListener('mouseup', () => isDrawing = false);
+                canvas.addEventListener('mouseout', () => isDrawing = false);
+
+                // Touch events for mobile
+                canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const rect = canvas.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    isDrawing = true;
+                    [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
+                });
+
+                canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    if (!isDrawing) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const touch = e.touches[0];
+                    const x = touch.clientX - rect.left;
+                    const y = touch.clientY - rect.top;
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    [lastX, lastY] = [x, y];
+                });
+
+                canvas.addEventListener('touchend', () => isDrawing = false);
+            }
+
+            async handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                document.getElementById('uploadLoading').style.display = 'block';
+                
+                try {
+                    this.documentType = file.type;
+                    
+                    if (file.type === 'application/pdf') {
+                        await this.handlePDFUpload(file);
+                    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                        await this.handleDocxUpload(file);
+                    } else if (file.type.startsWith('image/')) {
+                        await this.handleImageUpload(file);
+                    }
+                    
+                    this.updateProgress(1);
+                    document.getElementById('documentViewer').style.display = 'block';
+                    document.getElementById('uploadSection').style.display = 'none';
+                } catch (error) {
+                    alert('Error processing document: ' + error.message);
+                } finally {
+                    document.getElementById('uploadLoading').style.display = 'none';
+                }
+            }
+
+            async handlePDFUpload(file) {
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // Use PDF.js to render the PDF as an image (8.5x11 inches at 96 DPI = 816x1056 pixels)
+                const loadingTask = pdfjsLib.getDocument({data: arrayBuffer});
+                const pdf = await loadingTask.promise;
+                const page = await pdf.getPage(1);
+                
+                const canvas = document.getElementById('documentDisplay');
+                const context = canvas.getContext('2d');
+                
+                // Set canvas to 8.5x11 inches at 96 DPI
+                const width = 816;  // 8.5 inches * 96 DPI
+                const height = 1056; // 11 inches * 96 DPI
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Scale the PDF page to fit exactly in 8.5x11
+                const viewport = page.getViewport({scale: 1});
+                const scaleX = width / viewport.width;
+                const scaleY = height / viewport.height;
+                const scale = Math.min(scaleX, scaleY); // Use smaller scale to maintain aspect ratio
+                
+                const scaledViewport = page.getViewport({scale: scale});
+                
+                // Center the page if it doesn't fill the entire canvas
+                const offsetX = (width - scaledViewport.width) / 2;
+                const offsetY = (height - scaledViewport.height) / 2;
+                
+                // Fill with white background
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, width, height);
+                
+                // Translate context to center the PDF
+                context.save();
+                context.translate(offsetX, offsetY);
+                
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: scaledViewport
+                };
+                
+                await page.render(renderContext).promise;
+                context.restore();
+                
+                this.currentDocument = {
+                    type: 'pdf',
+                    data: arrayBuffer,
+                    pdf: pdf,
+                    canvas: canvas,
+                    width: width,
+                    height: height
+                };
+            }
+
+            async handleDocxUpload(file) {
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // Convert DOCX to HTML using mammoth
+                const result = await mammoth.convertToHtml({ 
+                    arrayBuffer: arrayBuffer,
+                    convertImage: mammoth.images.imgElement(function(image) {
+                        return image.read("base64").then(function(imageBuffer) {
+                            return {
+                                src: "data:" + image.contentType + ";base64," + imageBuffer
+                            };
+                        });
+                    })
+                });
+                
+                // Render the HTML content directly to canvas
+                await this.renderDocxHtmlToCanvas(result.value);
+                
+                this.currentDocument = {
+                    type: 'docx',
+                    originalFile: file,
+                    width: 816,
+                    height: 1056
+                };
+            }
+
+            async handleImageUpload(file) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    const canvas = document.getElementById('documentDisplay');
+                    const ctx = canvas.getContext('2d');
+                    
+                    img.onload = () => {
+                        // Set canvas to 8.5x11 inches at 96 DPI
+                        const width = 816;  // 8.5 inches * 96 DPI
+                        const height = 1056; // 11 inches * 96 DPI
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        // Fill with white background
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, width, height);
+                        
+                        // Calculate scaling to fit the image within 8.5x11 while maintaining aspect ratio
+                        const scaleX = width / img.width;
+                        const scaleY = height / img.height;
+                        const scale = Math.min(scaleX, scaleY);
+                        
+                        const scaledWidth = img.width * scale;
+                        const scaledHeight = img.height * scale;
+                        
+                        // Center the image
+                        const offsetX = (width - scaledWidth) / 2;
+                        const offsetY = (height - scaledHeight) / 2;
+                        
+                        ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+                        
+                        this.currentDocument = {
+                            type: 'image',
+                            image: img,
+                            originalFile: file,
+                            width: width,
+                            height: height
+                        };
+                        
+                        resolve();
+                    };
+                    
+                    img.onerror = () => {
+                        alert('Error loading image file');
+                        resolve();
+                    };
+                    
+                    img.src = URL.createObjectURL(file);
+                });
+            }
+
+
+
+            async renderDocxHtmlToCanvas(html) {
+                const canvas = document.getElementById('documentDisplay');
+                const ctx = canvas.getContext('2d');
+                
+                // Set canvas to 8.5x11 inches at 96 DPI
+                canvas.width = 816;
+                canvas.height = 1056;
+                
+                // Fill with white background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 816, 1056);
+                
+                // Set text properties
+                ctx.fillStyle = '#000000';
+                ctx.font = '12px Calibri, Arial, sans-serif';
+                
+                // Clean up the HTML and extract text with basic formatting
+                let cleanHtml = html
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/<\/p>/gi, '\n\n')
+                    .replace(/<\/div>/gi, '\n')
+                    .replace(/<\/h[1-6]>/gi, '\n\n');
+                
+                // Create a temporary element to parse the HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = cleanHtml;
+                
+                // Extract text content while preserving some structure
+                const textContent = tempDiv.textContent || tempDiv.innerText || '';
+                
+                // Split into paragraphs
+                const paragraphs = textContent.split('\n').filter(p => p.trim());
+                
+                let y = 96; // 1 inch top margin
+                const lineHeight = 16;
+                const maxWidth = 624; // 6.5 inches content width (8.5 - 2 inch margins)
+                const leftMargin = 96; // 1 inch left margin
+                
+                for (let paragraph of paragraphs) {
+                    if (!paragraph.trim()) {
+                        y += lineHeight * 0.5;
+                        continue;
+                    }
+                    
+                    // Word wrap each paragraph
+                    const words = paragraph.trim().split(' ');
+                    let line = '';
+                    
+                    for (let word of words) {
+                        const testLine = line + (line ? ' ' : '') + word;
+                        const metrics = ctx.measureText(testLine);
+                        
+                        if (metrics.width > maxWidth && line) {
+                            ctx.fillText(line, leftMargin, y);
+                            y += lineHeight;
+                            line = word;
+                        } else {
+                            line = testLine;
+                        }
+                        
+                        // Stop if we're near the bottom of the page
+                        if (y > 960) break;
+                    }
+                    
+                    if (line && y <= 960) {
+                        ctx.fillText(line, leftMargin, y);
+                        y += lineHeight;
+                    }
+                    
+                    // Add paragraph spacing
+                    y += lineHeight * 0.3;
+                    
+                    if (y > 960) break;
+                }
+                
+                // If no content was rendered, show a message
+                if (y <= 96 + lineHeight) {
+                    ctx.fillText('DOCX Document Loaded Successfully', leftMargin, 150);
+                    ctx.fillText('Content ready for signing', leftMargin, 180);
+                }
+            }
+
+            showSignatureSection() {
+                document.getElementById('documentViewer').style.display = 'none';
+                document.getElementById('signatureSection').style.display = 'block';
+                this.updateProgress(2);
+            }
+
+            clearSignature() {
+                const canvas = document.getElementById('signatureCanvas');
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                document.getElementById('signaturePreview').style.display = 'none';
+            }
+
+            saveSignature() {
+                const canvas = document.getElementById('signatureCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Check if canvas is empty
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const isEmpty = !imageData.data.some(channel => channel !== 0);
+                
+                if (isEmpty) {
+                    alert('Please draw your signature first!');
+                    return;
+                }
+                
+                this.signatureDataUrl = canvas.toDataURL();
+                
+                // Show preview
+                const previewCanvas = document.getElementById('previewCanvas');
+                const previewCtx = previewCanvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = () => {
+                    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                    previewCtx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+                };
+                
+                img.src = this.signatureDataUrl;
+                document.getElementById('signaturePreview').style.display = 'block';
+            }
+
+            showDocumentEditor() {
+                document.getElementById('signatureSection').style.display = 'none';
+                document.getElementById('documentEditor').style.display = 'block';
+                this.updateProgress(3);
+                this.setupDocumentEditor();
+            }
+
+            setupDocumentEditor() {
+                const editorCanvas = document.getElementById('documentCanvas');
+                const originalCanvas = document.getElementById('documentDisplay');
+                const ctx = editorCanvas.getContext('2d');
+                
+                // Set editor canvas to same 8.5x11 size
+                editorCanvas.width = 816;  // 8.5 inches * 96 DPI
+                editorCanvas.height = 1056; // 11 inches * 96 DPI
+                
+                // Copy the original document image to editor canvas
+                ctx.drawImage(originalCanvas, 0, 0);
+                
+                // Set up signature overlay
+                const overlay = document.getElementById('signatureOverlay');
+                const img = document.getElementById('signatureImage');
+                img.src = this.signatureDataUrl;
+                
+                overlay.style.left = this.signaturePosition.x + 'px';
+                overlay.style.top = this.signaturePosition.y + 'px';
+                overlay.style.width = this.signatureSize.width + 'px';
+                overlay.style.height = this.signatureSize.height + 'px';
+            }
+
+            placeSignature(event) {
+                const rect = event.target.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                
+                this.signaturePosition = { x: x - this.signatureSize.width / 2, y: y - this.signatureSize.height / 2 };
+                
+                const overlay = document.getElementById('signatureOverlay');
+                overlay.style.left = this.signaturePosition.x + 'px';
+                overlay.style.top = this.signaturePosition.y + 'px';
+                overlay.classList.add('active');
+            }
+
+            startDragging(event) {
+                event.stopPropagation();
+                this.isDragging = true;
+                const rect = event.target.getBoundingClientRect();
+                this.dragOffset = {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                };
+            }
+
+            startResizing(event) {
+                event.stopPropagation();
+                this.isResizing = true;
+            }
+
+            handleMouseMove(event) {
+                if (this.isDragging) {
+                    const container = document.getElementById('editorContainer');
+                    const containerRect = container.getBoundingClientRect();
+                    
+                    this.signaturePosition = {
+                        x: event.clientX - containerRect.left - this.dragOffset.x,
+                        y: event.clientY - containerRect.top - this.dragOffset.y
+                    };
+                    
+                    const overlay = document.getElementById('signatureOverlay');
+                    overlay.style.left = this.signaturePosition.x + 'px';
+                    overlay.style.top = this.signaturePosition.y + 'px';
+                } else if (this.isResizing) {
+                    const container = document.getElementById('editorContainer');
+                    const containerRect = container.getBoundingClientRect();
+                    
+                    this.signatureSize = {
+                        width: Math.max(50, event.clientX - containerRect.left - this.signaturePosition.x),
+                        height: Math.max(25, event.clientY - containerRect.top - this.signaturePosition.y)
+                    };
+                    
+                    const overlay = document.getElementById('signatureOverlay');
+                    overlay.style.width = this.signatureSize.width + 'px';
+                    overlay.style.height = this.signatureSize.height + 'px';
+                }
+            }
+
+            stopInteraction() {
+                this.isDragging = false;
+                this.isResizing = false;
+            }
+
+            resetSignaturePosition() {
+                this.signaturePosition = { x: 50, y: 50 };
+                this.signatureSize = { width: 150, height: 60 };
+                
+                const overlay = document.getElementById('signatureOverlay');
+                overlay.style.left = this.signaturePosition.x + 'px';
+                overlay.style.top = this.signaturePosition.y + 'px';
+                overlay.style.width = this.signatureSize.width + 'px';
+                overlay.style.height = this.signatureSize.height + 'px';
+                overlay.classList.remove('active');
+            }
+
+            async finalizeDocument() {
+                try {
+                    const canvas = document.getElementById('documentCanvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Draw signature on the document
+                    const signatureImg = new Image();
+                    signatureImg.onload = () => {
+                        ctx.drawImage(
+                            signatureImg,
+                            this.signaturePosition.x,
+                            this.signaturePosition.y,
+                            this.signatureSize.width,
+                            this.signatureSize.height
+                        );
+                        
+                        // Convert to PDF and download
+                        this.downloadSignedDocument(canvas);
+                    };
+                    signatureImg.src = this.signatureDataUrl;
+                } catch (error) {
+                    alert('Error finalizing document: ' + error.message);
+                }
+            }
+
+            async downloadSignedDocument(canvas) {
+                // Create a PDF with the exact 8.5x11 inch page containing the signed document image
+                const imgData = canvas.toDataURL('image/png');
+                
+                const pdfDoc = await PDFLib.PDFDocument.create();
+                
+                // Create a page that's exactly 8.5x11 inches (612x792 points in PDF units)
+                const page = pdfDoc.addPage([612, 792]);
+                
+                const pngImage = await pdfDoc.embedPng(imgData);
+                
+                // Draw the image to fill the entire page
+                page.drawImage(pngImage, {
+                    x: 0,
+                    y: 0,
+                    width: 612,
+                    height: 792,
+                });
+                
+                const pdfBytes = await pdfDoc.save();
+                
+                // Download the PDF
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'signed_document.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                alert('Document signed and downloaded successfully! The PDF is sized for standard 8.5x11 inch printing.');
+            }
+
+            updateProgress(step) {
+                // Reset all steps
+                document.querySelectorAll('.step').forEach(s => s.classList.remove('active', 'completed'));
+                
+                // Mark completed steps
+                for (let i = 1; i < step; i++) {
+                    document.getElementById(`step${i}`).classList.add('completed');
+                }
+                
+                // Mark current step
+                document.getElementById(`step${step}`).classList.add('active');
+            }
+        }
+
+        // Initialize the platform when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new DocumentSigningPlatform();
+        });
+    </script>
+</body>
+</html>
